@@ -1,10 +1,4 @@
-Got it! Here’s the updated README with the name centered at the top and the tech stack icons placed below it.
-
-<p align="center">
-  <img src="https://via.placeholder.com/150x50?text=Vyre" alt="Vyre Logo">
-</p>
-
-# Vyre - AI Assistant for Your System Tray
+# Vyre - AI Assistant for Your System Tray 
 
 <p align="center">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
