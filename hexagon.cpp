@@ -24,9 +24,6 @@ std::string GenerateText(const std::string& model, const std::string& prompt);
 void ShowError(const std::string& message);
 void LoadConfig();
 void SaveConfig();
-void ShowChatWindow();
-void ShowImageGenWindow(); 
-void ShowTextGenWindow();
 
 // Global variables
 NOTIFYICONDATA nid = {};
@@ -328,13 +325,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             else {
                 switch (LOWORD(wParam)) {
                     case IDM_CHAT:
-                        ShowChatWindow();
+                        MessageBox(hwnd, _T("Chat functionality not implemented yet"), _T("Info"), MB_OK | MB_ICONINFORMATION);
                         break;
                     case IDM_IMAGE:
-                        ShowImageGenWindow();
+                        MessageBox(hwnd, _T("Image generation not implemented yet"), _T("Info"), MB_OK | MB_ICONINFORMATION);
                         break;
                     case IDM_TEXT:
-                        ShowTextGenWindow();
+                        MessageBox(hwnd, _T("Text generation not implemented yet"), _T("Info"), MB_OK | MB_ICONINFORMATION);
                         break;
                     case IDM_EXIT:
                         DestroyWindow(hwnd);
