@@ -24,16 +24,24 @@ std::string GenerateText(const std::string& model, const std::string& prompt);
 void ShowError(const std::string& message);
 void LoadConfig();
 void SaveConfig();
+void ShowChatWindow();
+void ShowImageGenWindow(); 
+void ShowTextGenWindow();
 
 // Global variables
 NOTIFYICONDATA nid = {};
 HWND g_hwnd = NULL;
+HWND g_chatWnd = NULL;
+HWND g_imageWnd = NULL;
+HWND g_textWnd = NULL;
 std::vector<std::string> g_models;
 const UINT WM_TRAYICON = WM_APP + 1;
 const int IDM_MODEL_START = 1000;
-const int IDM_GENERATE = 2000;
+const int IDM_CHAT = 2000;
+const int IDM_IMAGE = 2001;
+const int IDM_TEXT = 2002;
+const int IDM_EXIT = 2003;
 HICON g_hIcon = NULL;
-std::string g_selectedModel;
 
 // Config struct
 struct Config {
@@ -44,6 +52,9 @@ struct Config {
 
 // Main window class name
 const TCHAR* CLASS_NAME = _T("HexagonTrayApp");
+const TCHAR* CHAT_CLASS = _T("HexagonChatWindow");
+const TCHAR* IMAGE_CLASS = _T("HexagonImageWindow");
+const TCHAR* TEXT_CLASS = _T("HexagonTextWindow");
 
 // Hugging Face API endpoint
 const std::string API_ENDPOINT = "https://api-inference.huggingface.co/models/";
@@ -122,7 +133,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     icex.dwICC = ICC_WIN95_CLASSES;
     InitCommonControlsEx(&icex);
 
-    // Register window class
+    // Register window classes
     WNDCLASSEX wc = {};
     wc.cbSize = sizeof(WNDCLASSEX);
     wc.lpfnWndProc = WindowProc;
@@ -242,7 +253,9 @@ void LoadModels() {
         "gpt2",
         "bert-base-uncased", 
         "t5-base",
-        "facebook/bart-large-cnn"
+        "facebook/bart-large-cnn",
+        "stabilityai/stable-diffusion-2",
+        "openai/clip-vit-base-patch32"
     };
     
     if (g_config.selectedModel.empty()) {
@@ -254,6 +267,13 @@ void ShowContextMenu(HWND hwnd, POINT pt) {
     HMENU hMenu = CreatePopupMenu();
     HMENU hModelMenu = CreatePopupMenu();
 
+    // Add AI interaction options
+    AppendMenu(hMenu, MF_STRING, IDM_CHAT, _T("Chat with AI"));
+    AppendMenu(hMenu, MF_STRING, IDM_IMAGE, _T("Generate Image"));
+    AppendMenu(hMenu, MF_STRING, IDM_TEXT, _T("Generate Text"));
+    AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+    
+    // Add model selection submenu
     for (size_t i = 0; i < g_models.size(); i++) {
         MENUITEMINFO mii = {sizeof(MENUITEMINFO)};
         mii.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
@@ -263,15 +283,9 @@ void ShowContextMenu(HWND hwnd, POINT pt) {
         InsertMenuItemA(hModelMenu, i, TRUE, &mii);
     }
     
-    MENUINFO mi = {sizeof(MENUINFO)};
-    mi.fMask = MIM_STYLE | MIM_APPLYTOSUBMENUS;
-    mi.dwStyle = MNS_NOTIFYBYPOS;
-    SetMenuInfo(hMenu, &mi);
-
     AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hModelMenu, _T("Select Model"));
-    AppendMenu(hMenu, MF_STRING, IDM_GENERATE, _T("Generate Text"));
     AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenu(hMenu, MF_STRING, IDM_GENERATE + 1, _T("Exit"));
+    AppendMenu(hMenu, MF_STRING, IDM_EXIT, _T("Exit"));
 
     SetForegroundWindow(hwnd);
     TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_VERNEGANIMATION,
@@ -311,12 +325,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                 Shell_NotifyIcon(NIM_MODIFY, &nid);
                 SaveConfig();
             }
-            else if (LOWORD(wParam) == IDM_GENERATE) {
-                std::string result = GenerateText(g_config.selectedModel, "Hello, how are you?");
-                MessageBoxA(hwnd, result.c_str(), "Generated Text", MB_OK | MB_ICONINFORMATION);
-            }
-            else if (LOWORD(wParam) == IDM_GENERATE + 1) {
-                DestroyWindow(hwnd);
+            else {
+                switch (LOWORD(wParam)) {
+                    case IDM_CHAT:
+                        ShowChatWindow();
+                        break;
+                    case IDM_IMAGE:
+                        ShowImageGenWindow();
+                        break;
+                    case IDM_TEXT:
+                        ShowTextGenWindow();
+                        break;
+                    case IDM_EXIT:
+                        DestroyWindow(hwnd);
+                        break;
+                }
             }
             return 0;
     }
