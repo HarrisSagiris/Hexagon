@@ -3,13 +3,10 @@
 #include <string>
 #include <vector>
 #include <memory>
-#include <curl/curl.h>
-#include <nlohmann/json.hpp>
 #include <commctrl.h>
 #include <gdiplus.h>
 
-using json = nlohmann::json;
-//build === g++ hexagon.cpp -o hexagon.exe -lgdiplus -lshell32 -lcurl -static-libgcc -static-libstdc++
+//build === g++ hexagon.cpp -o hexagon.exe -lgdiplus -lshell32 -static-libgcc -static-libstdc++
 // Forward declarations
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void ShowContextMenu(HWND hwnd, POINT pt);
@@ -35,7 +32,7 @@ const wchar_t* CLASS_NAME = L"HexagonTrayApp";
 const std::string API_ENDPOINT = "https://api-inference.huggingface.co/models/";
 const std::string API_TOKEN = "YOUR_HUGGINGFACE_TOKEN"; // Replace with your token
 
-// Callback for CURL
+// Callback for HTTP requests
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
     userp->append((char*)contents, size * nmemb);
     return size * nmemb;
@@ -66,9 +63,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Create main window
     CreateMainWindow();
 
-    // Initialize CURL
-    curl_global_init(CURL_GLOBAL_ALL);
-
     // Load available models
     LoadModels();
 
@@ -80,7 +74,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     }
 
     // Cleanup
-    curl_global_cleanup();
     Gdiplus::GdiplusShutdown(gdiplusToken);
     if (g_hIcon) DestroyIcon(g_hIcon);
     return 0;
@@ -202,37 +195,8 @@ void ShowContextMenu(HWND hwnd, POINT pt) {
 }
 
 std::string GenerateText(const std::string& model, const std::string& prompt) {
-    CURL* curl = curl_easy_init();
-    std::string response;
-
-    if (curl) {
-        std::string url = API_ENDPOINT + model;
-        struct curl_slist* headers = NULL;
-        headers = curl_slist_append(headers, ("Authorization: Bearer " + API_TOKEN).c_str());
-        headers = curl_slist_append(headers, "Content-Type: application/json");
-
-        json request = {
-            {"inputs", prompt}
-        };
-        std::string json_data = request.dump();
-
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_data.c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-
-        CURLcode res = curl_easy_perform(curl);
-        
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-
-        if (res != CURLE_OK) {
-            return "Error generating text";
-        }
-    }
-
-    return response;
+    // Placeholder for HTTP request implementation
+    return "Text generation not implemented yet";
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
