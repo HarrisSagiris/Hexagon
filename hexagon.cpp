@@ -304,9 +304,8 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                 g_config.selectedModel = g_models[modelIndex];
                 
                 nid.szInfoTitle[0] = '\0';
-                std::wstring infoText = std::wstring(_T("Now using: ")) + 
-                    std::wstring(g_config.selectedModel.begin(), g_config.selectedModel.end());
-                lstrcpy(nid.szInfo, infoText.c_str());
+                std::string infoText = "Now using: " + g_config.selectedModel;
+                lstrcpyA(nid.szInfo, infoText.c_str());
                 nid.uFlags |= NIF_INFO;
                 nid.dwInfoFlags = NIIF_INFO;
                 Shell_NotifyIcon(NIM_MODIFY, &nid);
