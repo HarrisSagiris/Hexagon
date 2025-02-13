@@ -2,16 +2,16 @@
 
 <p align="center">
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
-  <a href="https://github.com/yourusername/vyre"><img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version"></a>
-  <a href="https://github.com/yourusername/vyre/actions"><img src="https://img.shields.io/github/workflow/status/yourusername/vyre/CI" alt="Build Status"></a>
+  <a href="https://github.com/HarrisSagiris/Hexagon"><img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version"></a>
+  <a href="https://github.com/yourusername/hexagon/actions"><img src="https://img.shields.io/github/workflow/status/yourusername/hexagon/CI" alt="Build Status"></a>
 </p>
 
-Vyre is a powerful AI assistant that runs in your system tray, allowing you to interact with AI anywhere on your Windows machine. Whether you're in the terminal, writing code, or working in any application, Vyre is just a right-click away, providing solutions, automating tasks, and making your work more productive.
+Hexagon is a powerful AI assistant that runs in your system tray, allowing you to interact with AI anywhere on your Windows machine. Whether you're in the terminal, writing code, or working in any application, Hexagon is just a right-click away, providing solutions, automating tasks, and making your work more productive.
 
 ## Features
 
-- **Seamless Tray Integration**: Vyre lives in your system tray and can be accessed via a simple right-click menu.
-- **AI-Powered Queries**: Ask Vyre anything, and it will provide useful answers, suggestions, and solutions instantly.
+- **Seamless Tray Integration**: Hexagon lives in your system tray and can be accessed via a simple right-click menu.
+- **AI-Powered Queries**: Ask hexagon anything, and it will provide useful answers, suggestions, and solutions instantly.
 - **Terminal & Code Assistant**: Get the best npm packages, code snippets, or debugging tips directly into your terminal or editor.
 - **Clipboard Integration**: Automatically copy and paste responses into any application, from terminals to text editors.
 - **Customizable Commands**: Tailor the commands to your needs with a flexible and intuitive interface.
@@ -35,7 +35,7 @@ Vyre is a powerful AI assistant that runs in your system tray, allowing you to i
 ### Prerequisites
 
 1. **Node.js**: Make sure you have [Node.js](https://nodejs.org/) installed on your system.
-2. **Electron**: Vyre uses Electron to create the desktop app, so you'll need to install it globally:
+2. **Electron**: Hexagon uses Electron to create the desktop app, so you'll need to install it globally:
 
    ```bash
    npm install -g electron
