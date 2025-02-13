@@ -6,14 +6,12 @@
 #include <commctrl.h>
 #include <gdiplus.h>
 #include <tchar.h>
-#include <curl/curl.h>
 #include <fstream>
 #include <sstream>
 
 // Link required libraries
 #pragma comment(lib, "gdiplus.lib")
 #pragma comment(lib, "comctl32.lib")
-#pragma comment(lib, "libcurl.lib")
 
 // Forward declarations
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -36,7 +34,6 @@ const int IDM_MODEL_START = 1000;
 const int IDM_GENERATE = 2000;
 HICON g_hIcon = NULL;
 std::string g_selectedModel;
-CURL* g_curl = NULL;
 
 // Config struct
 struct Config {
@@ -50,12 +47,6 @@ const TCHAR* CLASS_NAME = _T("HexagonTrayApp");
 
 // Hugging Face API endpoint
 const std::string API_ENDPOINT = "https://api-inference.huggingface.co/models/";
-
-// Callback for HTTP requests
-size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
-    userp->append((char*)contents, size * nmemb);
-    return size * nmemb;
-}
 
 void LoadConfig() {
     std::ifstream configFile("config.json");
@@ -117,14 +108,6 @@ void ShowError(const std::string& message) {
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    // Initialize curl
-    curl_global_init(CURL_GLOBAL_ALL);
-    g_curl = curl_easy_init();
-    if (!g_curl) {
-        ShowError("Failed to initialize CURL");
-        return 1;
-    }
-
     // Load config
     LoadConfig();
 
@@ -172,8 +155,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Cleanup
     Gdiplus::GdiplusShutdown(gdiplusToken);
     if (g_hIcon) DestroyIcon(g_hIcon);
-    curl_easy_cleanup(g_curl);
-    curl_global_cleanup();
     SaveConfig();
     return 0;
 }
@@ -299,43 +280,7 @@ void ShowContextMenu(HWND hwnd, POINT pt) {
 }
 
 std::string GenerateText(const std::string& model, const std::string& prompt) {
-    if (!g_curl) return "CURL not initialized";
-
-    std::string url = API_ENDPOINT + model;
-    std::string response;
-    
-    struct curl_slist* headers = NULL;
-    headers = curl_slist_append(headers, ("Authorization: Bearer " + g_config.apiToken).c_str());
-    headers = curl_slist_append(headers, "Content-Type: application/json");
-
-    std::string jsonStr = "{\"inputs\": \"" + prompt + "\"}";
-
-    curl_easy_setopt(g_curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(g_curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(g_curl, CURLOPT_POSTFIELDS, jsonStr.c_str());
-    curl_easy_setopt(g_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
-    curl_easy_setopt(g_curl, CURLOPT_WRITEDATA, &response);
-
-    CURLcode res = curl_easy_perform(g_curl);
-    curl_slist_free_all(headers);
-
-    if (res != CURLE_OK) {
-        return std::string("CURL error: ") + curl_easy_strerror(res);
-    }
-
-    // Simple JSON parsing for response
-    size_t genTextPos = response.find("\"generated_text\"");
-    if (genTextPos != std::string::npos) {
-        size_t valueStart = response.find(":", genTextPos) + 1;
-        size_t valueEnd = response.find("}", valueStart);
-        std::string text = response.substr(valueStart, valueEnd - valueStart);
-        // Remove whitespace and quotes
-        text.erase(0, text.find_first_not_of(" \t\n\r\""));
-        text.erase(text.find_last_not_of(" \t\n\r\"") + 1);
-        return text;
-    }
-    
-    return "Failed to parse response: " + response;
+    return "API functionality not implemented";
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
