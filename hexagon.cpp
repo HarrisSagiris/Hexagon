@@ -5,6 +5,7 @@
 #include <memory>
 #include <commctrl.h>
 #include <gdiplus.h>
+#include <tchar.h>
 
 //build === g++ hexagon.cpp -o hexagon.exe -lgdiplus -lshell32 -static-libgcc -static-libstdc++
 // Forward declarations
@@ -26,7 +27,7 @@ const int IDM_GENERATE = 2000;
 HICON g_hIcon = NULL;
 
 // Main window class name
-const wchar_t* CLASS_NAME = L"HexagonTrayApp";
+const TCHAR* CLASS_NAME = _T("HexagonTrayApp");
 
 // Hugging Face API endpoint and token
 const std::string API_ENDPOINT = "https://api-inference.huggingface.co/models/";
@@ -56,8 +57,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = CLASS_NAME;
-    wc.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_APPLICATION)); // Replace with custom icon
-    wc.hIconSm = (HICON)LoadImage(hInstance, MAKEINTRESOURCE(IDI_APPLICATION), IMAGE_ICON, 16, 16, 0);
+    wc.hIcon = LoadIcon(NULL, IDI_APPLICATION); 
+    wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
     RegisterClassEx(&wc);
 
     // Create main window
@@ -80,10 +81,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 }
 
 void CreateMainWindow() {
-    g_hwnd = CreateWindowEx(
-        WS_EX_TOOLWINDOW, // Prevent taskbar button
+    g_hwnd = CreateWindow(
         CLASS_NAME,
-        L"Hexagon AI Assistant",
+        _T("Hexagon AI Assistant"),
         WS_POPUP,
         0, 0, 0, 0,
         NULL,
@@ -139,14 +139,14 @@ void InitNotifyIcon(HWND hwnd) {
     nid.cbSize = sizeof(NOTIFYICONDATA);
     nid.hWnd = hwnd;
     nid.uID = 1;
-    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_SHOWTIP;
+    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     nid.uCallbackMessage = WM_TRAYICON;
     nid.hIcon = g_hIcon;
-    wcscpy_s(nid.szTip, L"Hexagon AI Assistant");
+    lstrcpy(nid.szTip, _T("Hexagon AI Assistant"));
     Shell_NotifyIcon(NIM_ADD, &nid);
 
     // Set version for balloon notifications
-    nid.uVersion = NOTIFYICON_VERSION_4;
+    nid.uVersion = NOTIFYICON_VERSION;
     Shell_NotifyIcon(NIM_SETVERSION, &nid);
 }
 
@@ -183,10 +183,10 @@ void ShowContextMenu(HWND hwnd, POINT pt) {
     mi.dwStyle = MNS_NOTIFYBYPOS;
     SetMenuInfo(hMenu, &mi);
 
-    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hModelMenu, L"Select Model");
-    AppendMenu(hMenu, MF_STRING, IDM_GENERATE, L"Generate Text");
+    AppendMenu(hMenu, MF_POPUP, (UINT_PTR)hModelMenu, _T("Select Model"));
+    AppendMenu(hMenu, MF_STRING, IDM_GENERATE, _T("Generate Text"));
     AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
-    AppendMenu(hMenu, MF_STRING, IDM_GENERATE + 1, L"Exit");
+    AppendMenu(hMenu, MF_STRING, IDM_GENERATE + 1, _T("Exit"));
 
     SetForegroundWindow(hwnd);
     TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_VERNEGANIMATION, 
@@ -218,19 +218,18 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             if (LOWORD(wParam) >= IDM_MODEL_START && LOWORD(wParam) < IDM_MODEL_START + g_models.size()) {
                 int modelIndex = LOWORD(wParam) - IDM_MODEL_START;
                 // Show balloon notification for model selection
-                wcscpy_s(nid.szInfoTitle, L"Model Selected");
-                std::wstring infoText = L"Now using: " + std::wstring(g_models[modelIndex].begin(), g_models[modelIndex].end());
-                wcscpy_s(nid.szInfo, infoText.c_str());
+                lstrcpy(nid.szInfoTitle, _T("Model Selected"));
+                std::wstring infoText = std::wstring(_T("Now using: ")) + std::wstring(g_models[modelIndex].begin(), g_models[modelIndex].end());
+                lstrcpy(nid.szInfo, infoText.c_str());
                 nid.uFlags |= NIF_INFO;
                 nid.dwInfoFlags = NIIF_INFO;
                 Shell_NotifyIcon(NIM_MODIFY, &nid);
             }
             else if (LOWORD(wParam) == IDM_GENERATE) {
-                // Show modern dialog for text generation
+                // Show message box for text generation
                 std::string result = GenerateText(g_models[0], "Hello, how are you?");
-                TaskDialog(hwnd, NULL, L"Generated Text", L"AI Response",
-                          std::wstring(result.begin(), result.end()).c_str(),
-                          TDCBF_OK_BUTTON, TD_INFORMATION_ICON, NULL);
+                MessageBox(hwnd, std::wstring(result.begin(), result.end()).c_str(), 
+                          _T("Generated Text"), MB_OK | MB_ICONINFORMATION);
             }
             else if (LOWORD(wParam) == IDM_GENERATE + 1) {
                 DestroyWindow(hwnd);
