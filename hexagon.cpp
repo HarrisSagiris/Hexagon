@@ -9,7 +9,7 @@
 #include <gdiplus.h>
 
 using json = nlohmann::json;
-
+//build === g++ hexagon.cpp -o hexagon.exe -lgdiplus -lshell32 -lcurl -static-libgcc -static-libstdc++
 // Forward declarations
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void ShowContextMenu(HWND hwnd, POINT pt);
