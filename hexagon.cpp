@@ -6,8 +6,15 @@
 #include <commctrl.h>
 #include <gdiplus.h>
 #include <tchar.h>
+#include <curl/curl.h>
+#include <fstream>
+#include <sstream>
 
-//build === g++ hexagon.cpp -o hexagon.exe -lgdiplus -lshell32 -static-libgcc -static-libstdc++
+// Link required libraries
+#pragma comment(lib, "gdiplus.lib")
+#pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "libcurl.lib")
+
 // Forward declarations
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void ShowContextMenu(HWND hwnd, POINT pt);
@@ -16,6 +23,9 @@ void InitNotifyIcon(HWND hwnd);
 void CleanupNotifyIcon(HWND hwnd);
 void LoadModels();
 std::string GenerateText(const std::string& model, const std::string& prompt);
+void ShowError(const std::string& message);
+void LoadConfig();
+void SaveConfig();
 
 // Global variables
 NOTIFYICONDATA nid = {};
@@ -25,13 +35,21 @@ const UINT WM_TRAYICON = WM_APP + 1;
 const int IDM_MODEL_START = 1000;
 const int IDM_GENERATE = 2000;
 HICON g_hIcon = NULL;
+std::string g_selectedModel;
+CURL* g_curl = NULL;
+
+// Config struct
+struct Config {
+    std::string apiToken = "hf_your_token_here";
+    std::string selectedModel;
+    bool darkMode;
+} g_config;
 
 // Main window class name
 const TCHAR* CLASS_NAME = _T("HexagonTrayApp");
 
-// Hugging Face API endpoint and token
+// Hugging Face API endpoint
 const std::string API_ENDPOINT = "https://api-inference.huggingface.co/models/";
-const std::string API_TOKEN = "YOUR_HUGGINGFACE_TOKEN"; // Replace with your token
 
 // Callback for HTTP requests
 size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp) {
@@ -39,7 +57,77 @@ size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* use
     return size * nmemb;
 }
 
+void LoadConfig() {
+    std::ifstream configFile("config.json");
+    if (configFile.is_open()) {
+        std::string line;
+        std::string content;
+        while (std::getline(configFile, line)) {
+            content += line;
+        }
+        configFile.close();
+
+        size_t tokenPos = content.find("\"apiToken\"");
+        if (tokenPos != std::string::npos) {
+            size_t valueStart = content.find(":", tokenPos) + 1;
+            size_t valueEnd = content.find(",", valueStart);
+            std::string token = content.substr(valueStart, valueEnd - valueStart);
+            // Remove whitespace and quotes
+            token.erase(0, token.find_first_not_of(" \t\n\r\""));
+            token.erase(token.find_last_not_of(" \t\n\r\"") + 1);
+            g_config.apiToken = token;
+        }
+
+        size_t modelPos = content.find("\"selectedModel\"");
+        if (modelPos != std::string::npos) {
+            size_t valueStart = content.find(":", modelPos) + 1;
+            size_t valueEnd = content.find(",", valueStart);
+            std::string model = content.substr(valueStart, valueEnd - valueStart);
+            // Remove whitespace and quotes
+            model.erase(0, model.find_first_not_of(" \t\n\r\""));
+            model.erase(model.find_last_not_of(" \t\n\r\"") + 1);
+            g_config.selectedModel = model;
+        }
+
+        size_t darkModePos = content.find("\"darkMode\"");
+        if (darkModePos != std::string::npos) {
+            size_t valueStart = content.find(":", darkModePos) + 1;
+            size_t valueEnd = content.find("}", valueStart);
+            std::string darkMode = content.substr(valueStart, valueEnd - valueStart);
+            // Remove whitespace
+            darkMode.erase(0, darkMode.find_first_not_of(" \t\n\r"));
+            darkMode.erase(darkMode.find_last_not_of(" \t\n\r") + 1);
+            g_config.darkMode = (darkMode == "true");
+        }
+    }
+}
+
+void SaveConfig() {
+    std::ofstream configFile("config.json");
+    configFile << "{\n";
+    configFile << "    \"apiToken\": \"" << g_config.apiToken << "\",\n";
+    configFile << "    \"selectedModel\": \"" << g_config.selectedModel << "\",\n";
+    configFile << "    \"darkMode\": " << (g_config.darkMode ? "true" : "false") << "\n";
+    configFile << "}";
+    configFile.close();
+}
+
+void ShowError(const std::string& message) {
+    MessageBoxA(NULL, message.c_str(), "Error", MB_OK | MB_ICONERROR);
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
+    // Initialize curl
+    curl_global_init(CURL_GLOBAL_ALL);
+    g_curl = curl_easy_init();
+    if (!g_curl) {
+        ShowError("Failed to initialize CURL");
+        return 1;
+    }
+
+    // Load config
+    LoadConfig();
+
     // Initialize GDI+
     Gdiplus::GdiplusStartupInput gdiplusStartupInput;
     ULONG_PTR gdiplusToken;
@@ -51,18 +139,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     icex.dwICC = ICC_WIN95_CLASSES;
     InitCommonControlsEx(&icex);
 
-    // Register window class with custom icon
+    // Register window class
     WNDCLASSEX wc = {};
     wc.cbSize = sizeof(WNDCLASSEX);
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = CLASS_NAME;
-    wc.hIcon = LoadIcon(NULL, IDI_APPLICATION); 
+    wc.hIcon = LoadIcon(NULL, IDI_APPLICATION);
     wc.hIconSm = LoadIcon(NULL, IDI_APPLICATION);
-    RegisterClassEx(&wc);
+    if (!RegisterClassEx(&wc)) {
+        ShowError("Failed to register window class");
+        return 1;
+    }
 
     // Create main window
     CreateMainWindow();
+    if (!g_hwnd) {
+        ShowError("Failed to create main window");
+        return 1;
+    }
 
     // Load available models
     LoadModels();
@@ -77,15 +172,20 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Cleanup
     Gdiplus::GdiplusShutdown(gdiplusToken);
     if (g_hIcon) DestroyIcon(g_hIcon);
+    curl_easy_cleanup(g_curl);
+    curl_global_cleanup();
+    SaveConfig();
     return 0;
 }
 
 void CreateMainWindow() {
-    g_hwnd = CreateWindow(
+    g_hwnd = CreateWindowEx(
+        0,
         CLASS_NAME,
         _T("Hexagon AI Assistant"),
-        WS_POPUP,
-        0, 0, 0, 0,
+        WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, CW_USEDEFAULT,
+        400, 300,
         NULL,
         NULL,
         GetModuleHandle(NULL),
@@ -93,30 +193,29 @@ void CreateMainWindow() {
     );
 
     if (g_hwnd) {
+        ShowWindow(g_hwnd, SW_HIDE);
         InitNotifyIcon(g_hwnd);
     }
 }
 
 void InitNotifyIcon(HWND hwnd) {
-    // Create custom icon using GDI+
     const int iconSize = 16;
     Gdiplus::Bitmap bitmap(iconSize, iconSize);
     Gdiplus::Graphics graphics(&bitmap);
     
-    // Draw a hexagon with gradient
     Gdiplus::GraphicsPath path;
     const float radius = iconSize / 2.0f - 1;
     const float centerX = iconSize / 2.0f;
     const float centerY = iconSize / 2.0f;
     
+    // Create hexagon path
     for (int i = 0; i < 6; i++) {
         float angle = i * 60.0f * 3.14159f / 180.0f;
         float x = centerX + radius * cos(angle);
         float y = centerY + radius * sin(angle);
         if (i == 0)
             path.StartFigure();
-        else
-            path.AddLine(x, y, x, y);
+        path.AddLine(x, y, x, y);
     }
     path.CloseFigure();
 
@@ -124,28 +223,31 @@ void InitNotifyIcon(HWND hwnd) {
     Gdiplus::LinearGradientBrush gradientBrush(
         Gdiplus::Point(0, 0),
         Gdiplus::Point(iconSize, iconSize),
-        Gdiplus::Color(255, 41, 128, 185),  // Nice blue
-        Gdiplus::Color(255, 52, 152, 219)   // Lighter blue
+        Gdiplus::Color(255, 41, 128, 185),
+        Gdiplus::Color(255, 52, 152, 219)
     );
 
     graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
     graphics.FillPath(&gradientBrush, &path);
 
-    // Convert to icon
     HICON hIcon = NULL;
     bitmap.GetHICON(&hIcon);
     g_hIcon = hIcon;
 
+    // Setup notification icon
     nid.cbSize = sizeof(NOTIFYICONDATA);
     nid.hWnd = hwnd;
     nid.uID = 1;
-    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
+    nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_INFO;
     nid.uCallbackMessage = WM_TRAYICON;
     nid.hIcon = g_hIcon;
     lstrcpy(nid.szTip, _T("Hexagon AI Assistant"));
-    Shell_NotifyIcon(NIM_ADD, &nid);
+    
+    if (!Shell_NotifyIcon(NIM_ADD, &nid)) {
+        ShowError("Failed to create tray icon");
+        return;
+    }
 
-    // Set version for balloon notifications
     nid.uVersion = NOTIFYICON_VERSION;
     Shell_NotifyIcon(NIM_SETVERSION, &nid);
 }
@@ -157,27 +259,29 @@ void CleanupNotifyIcon(HWND hwnd) {
 void LoadModels() {
     g_models = {
         "gpt2",
-        "bert-base-uncased",
+        "bert-base-uncased", 
         "t5-base",
         "facebook/bart-large-cnn"
     };
+    
+    if (g_config.selectedModel.empty()) {
+        g_config.selectedModel = g_models[0];
+    }
 }
 
 void ShowContextMenu(HWND hwnd, POINT pt) {
     HMENU hMenu = CreatePopupMenu();
     HMENU hModelMenu = CreatePopupMenu();
 
-    // Add models submenu with icons and modern styling
     for (size_t i = 0; i < g_models.size(); i++) {
         MENUITEMINFO mii = {sizeof(MENUITEMINFO)};
         mii.fMask = MIIM_STRING | MIIM_ID | MIIM_STATE;
         mii.wID = IDM_MODEL_START + i;
-        mii.fState = MFS_ENABLED;
+        mii.fState = (g_models[i] == g_config.selectedModel) ? MFS_CHECKED : MFS_ENABLED;
         mii.dwTypeData = (LPSTR)g_models[i].c_str();
         InsertMenuItemA(hModelMenu, i, TRUE, &mii);
     }
     
-    // Modern menu styling
     MENUINFO mi = {sizeof(MENUINFO)};
     mi.fMask = MIM_STYLE | MIM_APPLYTOSUBMENUS;
     mi.dwStyle = MNS_NOTIFYBYPOS;
@@ -189,14 +293,49 @@ void ShowContextMenu(HWND hwnd, POINT pt) {
     AppendMenu(hMenu, MF_STRING, IDM_GENERATE + 1, _T("Exit"));
 
     SetForegroundWindow(hwnd);
-    TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_VERNEGANIMATION, 
+    TrackPopupMenu(hMenu, TPM_BOTTOMALIGN | TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_VERNEGANIMATION,
                    pt.x, pt.y, 0, hwnd, NULL);
     DestroyMenu(hMenu);
 }
 
 std::string GenerateText(const std::string& model, const std::string& prompt) {
-    // Placeholder for HTTP request implementation
-    return "Text generation not implemented yet";
+    if (!g_curl) return "CURL not initialized";
+
+    std::string url = API_ENDPOINT + model;
+    std::string response;
+    
+    struct curl_slist* headers = NULL;
+    headers = curl_slist_append(headers, ("Authorization: Bearer " + g_config.apiToken).c_str());
+    headers = curl_slist_append(headers, "Content-Type: application/json");
+
+    std::string jsonStr = "{\"inputs\": \"" + prompt + "\"}";
+
+    curl_easy_setopt(g_curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(g_curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(g_curl, CURLOPT_POSTFIELDS, jsonStr.c_str());
+    curl_easy_setopt(g_curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+    curl_easy_setopt(g_curl, CURLOPT_WRITEDATA, &response);
+
+    CURLcode res = curl_easy_perform(g_curl);
+    curl_slist_free_all(headers);
+
+    if (res != CURLE_OK) {
+        return std::string("CURL error: ") + curl_easy_strerror(res);
+    }
+
+    // Simple JSON parsing for response
+    size_t genTextPos = response.find("\"generated_text\"");
+    if (genTextPos != std::string::npos) {
+        size_t valueStart = response.find(":", genTextPos) + 1;
+        size_t valueEnd = response.find("}", valueStart);
+        std::string text = response.substr(valueStart, valueEnd - valueStart);
+        // Remove whitespace and quotes
+        text.erase(0, text.find_first_not_of(" \t\n\r\""));
+        text.erase(text.find_last_not_of(" \t\n\r\"") + 1);
+        return text;
+    }
+    
+    return "Failed to parse response: " + response;
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
@@ -217,19 +356,20 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
         case WM_COMMAND:
             if (LOWORD(wParam) >= IDM_MODEL_START && LOWORD(wParam) < IDM_MODEL_START + g_models.size()) {
                 int modelIndex = LOWORD(wParam) - IDM_MODEL_START;
-                // Show balloon notification for model selection
-                lstrcpy(nid.szInfoTitle, _T("Model Selected"));
-                std::wstring infoText = std::wstring(_T("Now using: ")) + std::wstring(g_models[modelIndex].begin(), g_models[modelIndex].end());
+                g_config.selectedModel = g_models[modelIndex];
+                
+                nid.szInfoTitle[0] = '\0';
+                std::wstring infoText = std::wstring(_T("Now using: ")) + 
+                    std::wstring(g_config.selectedModel.begin(), g_config.selectedModel.end());
                 lstrcpy(nid.szInfo, infoText.c_str());
                 nid.uFlags |= NIF_INFO;
                 nid.dwInfoFlags = NIIF_INFO;
                 Shell_NotifyIcon(NIM_MODIFY, &nid);
+                SaveConfig();
             }
             else if (LOWORD(wParam) == IDM_GENERATE) {
-                // Show message box for text generation
-                std::string result = GenerateText(g_models[0], "Hello, how are you?");
-                MessageBox(hwnd, std::wstring(result.begin(), result.end()).c_str(), 
-                          _T("Generated Text"), MB_OK | MB_ICONINFORMATION);
+                std::string result = GenerateText(g_config.selectedModel, "Hello, how are you?");
+                MessageBoxA(hwnd, result.c_str(), "Generated Text", MB_OK | MB_ICONINFORMATION);
             }
             else if (LOWORD(wParam) == IDM_GENERATE + 1) {
                 DestroyWindow(hwnd);
